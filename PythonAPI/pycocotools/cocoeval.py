@@ -420,42 +420,44 @@ class COCOeval:
         toc = time.time()
         print('DONE (t={:0.2f}s).'.format( toc-tic))
 
+    def _summarize(self, ap=1, iouThr=None, areaRng='all', maxDets=100 ):
+        p = self.params
+        iStr = ' {:<18} {} @[ IoU={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
+        titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
+        typeStr = '(AP)' if ap==1 else '(AR)'
+        iouStr = '{:0.2f}:{:0.2f}'.format(p.iouThrs[0], p.iouThrs[-1]) \
+            if iouThr is None else '{:0.2f}'.format(iouThr)
+
+        aind = [i for i, aRng in enumerate(p.areaRngLbl) if aRng == areaRng]
+        mind = [i for i, mDet in enumerate(p.maxDets) if mDet == maxDets]
+        if ap == 1:
+            # dimension of precision: [TxRxKxAxM]
+            s = self.eval['precision']
+            # IoU
+            if iouThr is not None:
+                t = np.where(iouThr == p.iouThrs)[0]
+                s = s[t]
+            s = s[:,:,:,aind,mind]
+        else:
+            # dimension of recall: [TxKxAxM]
+            s = self.eval['recall']
+            if iouThr is not None:
+                t = np.where(iouThr == p.iouThrs)[0]
+                s = s[t]
+            s = s[:,:,aind,mind]
+        if len(s[s>-1])==0:
+            mean_s = -1
+        else:
+            mean_s = np.mean(s[s>-1])
+        print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+        return mean_s
+
     def summarize(self):
         '''
         Compute and display summary metrics for evaluation results.
         Note this functin can *only* be applied on the default parameter setting
         '''
-        def _summarize( ap=1, iouThr=None, areaRng='all', maxDets=100 ):
-            p = self.params
-            iStr = ' {:<18} {} @[ IoU={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
-            titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
-            typeStr = '(AP)' if ap==1 else '(AR)'
-            iouStr = '{:0.2f}:{:0.2f}'.format(p.iouThrs[0], p.iouThrs[-1]) \
-                if iouThr is None else '{:0.2f}'.format(iouThr)
-
-            aind = [i for i, aRng in enumerate(p.areaRngLbl) if aRng == areaRng]
-            mind = [i for i, mDet in enumerate(p.maxDets) if mDet == maxDets]
-            if ap == 1:
-                # dimension of precision: [TxRxKxAxM]
-                s = self.eval['precision']
-                # IoU
-                if iouThr is not None:
-                    t = np.where(iouThr == p.iouThrs)[0]
-                    s = s[t]
-                s = s[:,:,:,aind,mind]
-            else:
-                # dimension of recall: [TxKxAxM]
-                s = self.eval['recall']
-                if iouThr is not None:
-                    t = np.where(iouThr == p.iouThrs)[0]
-                    s = s[t]
-                s = s[:,:,aind,mind]
-            if len(s[s>-1])==0:
-                mean_s = -1
-            else:
-                mean_s = np.mean(s[s>-1])
-            print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
-            return mean_s
+        _summarize = self._summarize
         def _summarizeDets():
             stats = np.zeros((12,))
             stats[0] = _summarize(1)
